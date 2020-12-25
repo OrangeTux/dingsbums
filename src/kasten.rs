@@ -5,13 +5,15 @@ use petgraph::Directed;
 use serde::{Deserialize, Serialize};
 use serde_json;
 use std::io::prelude::*;
-use std::{collections::HashMap, fs::File};
+use std::{
+    fs::{create_dir_all, File},
+    path::Path,
+};
 use uuid::Uuid;
 
 #[derive(Serialize, Deserialize)]
 pub struct Kasten {
     index: Graph<Uuid, u8, Directed>,
-    zettels: HashMap<Uuid, Zettel>,
 }
 
 impl Kasten {
@@ -21,28 +23,50 @@ impl Kasten {
         }
     }
 
-    /// Recreate a `Kasten` from a file.
-    pub fn from_file(path: &str) -> Result<Self, AppError> {
+    /// Create a `ZettelKasten` by importing directory at given `path`.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// let kasten = Kasten::from_dir("~/.zettelkasten").unwrap();
+    /// ```
+    pub fn from_dir(path: &str) -> Result<Self, AppError> {
+        let path = Path::new(&path).join("db");
         let file = File::open(&path).map_err(AppError::WriteError)?;
         return Kasten::import(file);
     }
 
-    pub fn import<R: Read>(input: R) -> Result<Self, AppError> {
+    fn import<R: Read>(input: R) -> Result<Self, AppError> {
         serde_json::from_reader(input).map_err(AppError::SerializationError)
     }
 
-    pub fn to_file(&self, path: &str) -> Result<(), AppError> {
+    /// Export a `ZettelKasten` to a file system at the given `path`.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// let kasten = Kasten::new();
+    /// kasten.to_dir("~/.zettelkasten").unwrap();
+    /// ```
+    pub fn to_dir(&self, path: &str) -> Result<(), AppError> {
+        let dir = Path::new(path);
+        if !dir.exists() {
+            create_dir_all(&path.clone()).map_err(AppError::WriteError)?;
+        }
+
+        let path = Path::new(&path).join("db");
         let file = File::create(&path).map_err(AppError::WriteError)?;
         return self.export(file);
     }
 
-    pub fn export<W: Write>(&self, output: W) -> Result<(), AppError> {
+    fn export<W: Write>(&self, output: W) -> Result<(), AppError> {
         serde_json::to_writer(output, &self)
             .map(|_| ())
             .map_err(AppError::SerializationError)
     }
 
-    /// Add a Zettel to a the Kasten.
+    /// Add a `Zettel` to a `Kasten`.
+    /// A `Zettel` can have 0 or more parents.
     pub fn add_zettel(&mut self, zettel: Zettel, parents: Vec<Uuid>) -> Result<(), AppError> {
         if self.get_node_index(zettel.id).is_ok() {
             return Err(AppError::ZettelExistsError);

@@ -34,12 +34,12 @@ fn main() {
         SubCommand::Init => {
             let kasten = Kasten::new();
             kasten
-                .to_file(&opts.path)
+                .to_dir(&opts.path)
                 .expect("Failed to initialize new ZettelKasten.");
         }
         SubCommand::New(New { parent }) => {
             let mut kasten =
-                Kasten::from_file(&opts.path).expect("Failed to restore ZettelKasten from disk.");
+                Kasten::from_dir(&opts.path).expect("Failed to restore ZettelKasten from disk.");
 
             let mut parents = vec![];
             let zettel = match parent {
@@ -49,15 +49,12 @@ fn main() {
                 }
                 None => Zettel::new("Root zettel".to_string()),
             };
-
             kasten
                 .add_zettel(zettel, parents)
                 .expect("Failed to add Zettel.");
             kasten
-                .to_file(&opts.path)
+                .to_dir(&opts.path)
                 .expect("Failed to store ZettelKasten.");
-
-            kasten.dot();
         }
     }
 }
