@@ -6,6 +6,7 @@ use serde::{Deserialize, Serialize};
 use serde_json;
 use std::io::prelude::*;
 use std::{
+    collections::HashMap,
     fs::{create_dir_all, File},
     path::Path,
 };
@@ -14,12 +15,16 @@ use uuid::Uuid;
 #[derive(Serialize, Deserialize)]
 pub struct Kasten {
     index: Graph<Uuid, u8, Directed>,
+
+    #[serde(skip)]
+    zettels: HashMap<Uuid, Zettel>,
 }
 
 impl Kasten {
     pub fn new() -> Self {
         Kasten {
             index: Graph::new(),
+            zettels: HashMap::new(),
         }
     }
 
@@ -56,7 +61,19 @@ impl Kasten {
 
         let path = Path::new(&path).join("db");
         let file = File::create(&path).map_err(AppError::WriteError)?;
-        return self.export(file);
+        self.export(file)?;
+
+        for zettel in self.zettels.values() {
+            if !zettel.dirty {
+                continue;
+            };
+
+            let path = Path::new(&dir).join(zettel.id.to_string());
+            let file = File::create(&path).map_err(AppError::WriteError)?;
+            zettel.export(&file)?
+        }
+
+        Ok(())
     }
 
     fn export<W: Write>(&self, output: W) -> Result<(), AppError> {
@@ -90,6 +107,8 @@ impl Kasten {
         existing_parents.iter().for_each(|parent_node| {
             self.index.add_edge(*parent_node, child_node, 0);
         });
+
+        self.zettels.insert(zettel.id, zettel);
 
         Ok(())
     }

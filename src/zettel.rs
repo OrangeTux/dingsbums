@@ -2,13 +2,18 @@
 /// A series of linked `Zettel`s form a undirected connected finite graph. In that a node
 /// corresponds to `Zettel`. And the links between nodes (call edges) are the relations between
 /// `Zettel`.
+use crate::errors::AppError;
 use serde::{Deserialize, Serialize};
+use std::io::prelude::*;
 use uuid::Uuid;
 
 #[derive(Serialize, Deserialize)]
 pub struct Zettel {
     pub id: Uuid,
     pub body: String,
+
+    #[serde(skip)]
+    pub dirty: bool,
 }
 
 impl std::fmt::Debug for Zettel {
@@ -38,6 +43,16 @@ impl Zettel {
     pub fn new(body: String) -> Self {
         let id = Uuid::new_v4();
 
-        Zettel { id, body }
+        Zettel {
+            id,
+            body,
+            dirty: true,
+        }
+    }
+
+    pub fn export<W: Write>(&self, output: W) -> Result<(), AppError> {
+        serde_json::to_writer(output, &self)
+            .map(|_| ())
+            .map_err(AppError::SerializationError)
     }
 }
