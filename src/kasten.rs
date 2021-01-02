@@ -1,82 +1,39 @@
 use crate::errors::AppError;
-use crate::zettel::Zettel;
+use crate::zettel::{MetaData, Zettel};
 use petgraph::graph::{Graph, NodeIndex};
 use petgraph::Directed;
 use serde::{Deserialize, Serialize};
 use serde_json;
+use std::collections::HashMap;
 use std::io::prelude::*;
-use std::{
-    collections::HashMap,
-    fs::{create_dir_all, File},
-    path::Path,
-};
 use uuid::Uuid;
 
 #[derive(Serialize, Deserialize)]
 pub struct Kasten {
+    // A directed graph that contains the relations between `Zettel`s.
     index: Graph<Uuid, u8, Directed>,
 
+    pub meta_data: HashMap<Uuid, MetaData>,
+
     #[serde(skip)]
-    zettels: HashMap<Uuid, Zettel>,
+    pub zettels: HashMap<Uuid, Zettel>,
 }
 
 impl Kasten {
     pub fn new() -> Self {
         Kasten {
             index: Graph::new(),
+            meta_data: HashMap::new(),
             zettels: HashMap::new(),
         }
     }
 
-    /// Create a `ZettelKasten` by importing directory at given `path`.
-    ///
-    /// # Examples
-    ///
-    /// ```no_run
-    /// let kasten = Kasten::from_dir("~/.zettelkasten").unwrap();
-    /// ```
-    pub fn from_dir(path: &str) -> Result<Self, AppError> {
-        let path = Path::new(&path).join("db");
-        let file = File::open(&path).map_err(AppError::WriteError)?;
-        return Kasten::import(file);
-    }
-
-    fn import<R: Read>(input: R) -> Result<Self, AppError> {
+    /// Create `Kasten` from reader.
+    pub fn import<R: Read>(input: R) -> Result<Self, AppError> {
         serde_json::from_reader(input).map_err(AppError::SerializationError)
     }
 
-    /// Export a `ZettelKasten` to a file system at the given `path`.
-    ///
-    /// # Examples
-    ///
-    /// ```no_run
-    /// let kasten = Kasten::new();
-    /// kasten.to_dir("~/.zettelkasten").unwrap();
-    /// ```
-    pub fn to_dir(&self, path: &str) -> Result<(), AppError> {
-        let dir = Path::new(path);
-        if !dir.exists() {
-            create_dir_all(&path.clone()).map_err(AppError::WriteError)?;
-        }
-
-        let path = Path::new(&path).join("db");
-        let file = File::create(&path).map_err(AppError::WriteError)?;
-        self.export(file)?;
-
-        for zettel in self.zettels.values() {
-            if !zettel.dirty {
-                continue;
-            };
-
-            let path = Path::new(&dir).join(zettel.id.to_string());
-            let file = File::create(&path).map_err(AppError::WriteError)?;
-            zettel.export(&file)?
-        }
-
-        Ok(())
-    }
-
-    fn export<W: Write>(&self, output: W) -> Result<(), AppError> {
+    pub fn export<W: Write>(&self, output: W) -> Result<(), AppError> {
         serde_json::to_writer(output, &self)
             .map(|_| ())
             .map_err(AppError::SerializationError)
@@ -85,7 +42,7 @@ impl Kasten {
     /// Add a `Zettel` to a `Kasten`.
     /// A `Zettel` can have 0 or more parents.
     pub fn add_zettel(&mut self, zettel: Zettel, parents: Vec<Uuid>) -> Result<(), AppError> {
-        if self.get_node_index(zettel.id).is_ok() {
+        if self.get_node_index(zettel.meta_data.id).is_ok() {
             return Err(AppError::ZettelExistsError);
         };
 
@@ -102,18 +59,21 @@ impl Kasten {
             return Err(AppError::ZettelDoesntExistsError);
         }
 
-        let child_node = self.index.add_node(zettel.id.clone());
+        let child_node = self.index.add_node(zettel.meta_data.id.clone());
 
         existing_parents.iter().for_each(|parent_node| {
             self.index.add_edge(*parent_node, child_node, 0);
         });
 
-        self.zettels.insert(zettel.id, zettel);
+        let meta_data = zettel.meta_data.clone();
+
+        self.zettels.insert(meta_data.id, zettel);
+        self.meta_data.insert(meta_data.id, meta_data);
 
         Ok(())
     }
 
-    fn get_node_index(&self, id: Uuid) -> Result<NodeIndex<u32>, AppError> {
+    pub fn get_node_index(&self, id: Uuid) -> Result<NodeIndex<u32>, AppError> {
         match self.index.node_indices().find(|i| self.index[*i] == id) {
             Some(i) => Ok(i),
             None => Err(AppError::ZettelDoesntExistsError),

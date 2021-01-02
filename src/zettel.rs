@@ -3,13 +3,30 @@
 /// corresponds to `Zettel`. And the links between nodes (call edges) are the relations between
 /// `Zettel`.
 use crate::errors::AppError;
+use chrono::prelude::*;
 use serde::{Deserialize, Serialize};
+use skim::prelude::Cow;
+use skim::SkimItem;
 use std::io::prelude::*;
 use uuid::Uuid;
 
+#[derive(Serialize, Deserialize, Clone)]
+pub struct MetaData {
+    pub id: Uuid,
+    pub title: String,
+    pub creation_date: DateTime<Utc>,
+}
+
+impl SkimItem for MetaData {
+    fn text(&self) -> Cow<str> {
+        let text = format!("{} - {}", self.title, self.id);
+        Cow::from(text)
+    }
+}
+
 #[derive(Serialize, Deserialize)]
 pub struct Zettel {
-    pub id: Uuid,
+    pub meta_data: MetaData,
     pub body: String,
 
     #[serde(skip)]
@@ -31,7 +48,7 @@ impl std::fmt::Debug for Zettel {
         };
 
         f.debug_struct("Zettel")
-            .field("uuid", &self.id)
+            .field("uuid", &self.meta_data.id)
             // `get(..)` will never fail here. It's equivalent of doing `get(0..body.len())`.
             .field("body", &body.get(..).unwrap())
             .finish()
@@ -43,8 +60,18 @@ impl Zettel {
     pub fn new(body: String) -> Self {
         let id = Uuid::new_v4();
 
+        let title = if let Some(title) = body.lines().next() {
+            title
+        } else {
+            ""
+        };
+
         Zettel {
-            id,
+            meta_data: MetaData {
+                id,
+                title: title.to_string(),
+                creation_date: Utc::now(),
+            },
             body,
             dirty: true,
         }

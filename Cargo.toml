@@ -14,3 +14,4 @@ chrono = { version = "0.4", features = ["serde"] }
 thiserror = "1.0.20"
 clap = "3.0.0-beta.2"
 petgraph = { version = "0.5.1", features = ["serde-1"]}
+skim = "0.9.3"
