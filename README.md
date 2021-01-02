@@ -42,6 +42,7 @@ As a zettel can be linked to other zettels it might be possible to form a cycle.
 ## FAQ
 
 Q1) **Why the name "Dingsbums"?**
+
 A1) ["Dingsbums"](dingsbums) is a German word often used by a person who wants
 to describe something but forgot the name of the subject. It loosely translates
 to "thingy" in English.
