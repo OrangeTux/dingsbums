@@ -1,9 +1,11 @@
 use clap::Clap;
 use skim::prelude::*;
-use std::env::var;
+use std::env;
+use std::fs;
 use std::fs::{create_dir_all, File};
 use std::path::{Path, PathBuf};
 use std::process::Command;
+use std::str;
 use uuid::Uuid;
 use zettelkasten::errors::AppError;
 use zettelkasten::kasten::Kasten;
@@ -73,7 +75,7 @@ impl App {
     /// ```
     pub fn import(path: &str) -> Result<Self, AppError> {
         let path = Path::new(&path);
-g       let file = File::open(&path.join("db")).map_err(AppError::WriteError)?;
+        let file = File::open(&path.join("db")).map_err(AppError::WriteError)?;
         let kasten = Kasten::import(file)?;
         Ok(App {
             kasten,
@@ -112,12 +114,50 @@ g       let file = File::open(&path.join("db")).map_err(AppError::WriteError)?;
         Ok(())
     }
 
-    pub fn get_zettel_path(&self, id: Uuid) -> Result<PathBuf, AppError> {
-        self.kasten.get_node_index(id)?;
+    /// Add new `Zettel` to `App`. A `Zettel` can be linked to other `Zettel`s by passing their
+    /// IDs as `parents`.
+    ///
+    /// **note**: `App` must be `export`ed to save any changes.
+    ///
+    /// ```
+    /// let app = App::new("~/.zettelkasten");
+    /// let parent = app.new_zettel(vec![]).unwrap()
+    /// let child = app.new_zettel(vec![parent]).unwrap()
+    /// ```
+    pub fn new_zettel(&mut self, parents: Vec<Uuid>) -> Result<Uuid, AppError> {
+        let zettel = Zettel::new("".to_string());
+        let id = zettel.meta_data.id;
+        self.kasten.add_zettel(zettel, parents).map(|_| id)
+    }
 
-        let mut path = self.root.clone();
-        path.push(format!("{}", id));
-        Ok(path)
+    /// Open `Zettel` with preferred editor to allow modifications.
+    ///
+    /// **note**: `App` must be `export`ed to save any changes.
+    pub fn open_zettel(&mut self, id: Uuid) -> Result<Zettel, AppError> {
+        let mut zettel = self.kasten.get_zettel(id)?;
+
+        let mut temp_path = env::temp_dir();
+        temp_path.push(id.to_string());
+
+        fs::write(&temp_path, zettel.body.clone()).expect("Could not create temporary Zettel.");
+
+        // Open temp file with editor
+        let editor = env::var("EDITOR").expect("Env var 'EDITOR' not set");
+        Command::new(editor)
+            .arg(&temp_path)
+            .status()
+            .expect("Failed to open temporary zettel with EDITOR.");
+
+        // Read content of temp file
+        let content = fs::read(&temp_path).expect("Failed to read content temporary Zettel.");
+        zettel.update_body(
+            str::from_utf8(&content)
+                .expect("Failed to read content temporary Zettel")
+                .to_string(),
+        );
+        self.kasten.update_zettel(zettel.clone());
+
+        return Ok(zettel);
     }
 }
 
@@ -130,29 +170,30 @@ fn main() {
             app.export()
                 .expect("Failed to initialize new ZettelKasten.");
         }
+
         SubCommand::Graph => {
             let app = App::import(&opts.path).expect("Failed to restore ZettelKasten from disk.");
             app.kasten.dot();
         }
+
         SubCommand::New(New { no_parent: true }) => {
             let mut app =
                 App::import(&opts.path).expect("Failed to restore ZettelKasten from disk.");
-            let zettel = Zettel::new("Root zettel".to_string());
-            let id = zettel.meta_data.id.clone();
-            app.kasten
-                .add_zettel(zettel, vec![])
-                .expect("Failed to add Zettel.");
-            let path = app.get_zettel_path(id).unwrap();
+            let id = app
+                .new_zettel(vec![])
+                .expect("Failed to create new Zettel.");
+            app.open_zettel(id)
+                .expect("Failed to open Zettel in editor.");
             app.export().expect("Failed to store ZettelKasten.");
-            open_zettel(path);
         }
+
         SubCommand::New(New { no_parent: false }) => {
             let mut app =
                 App::import(&opts.path).expect("Failed to restore ZettelKasten from disk.");
 
             let (tx_item, rx_item): (SkimItemSender, SkimItemReceiver) = unbounded();
             app.kasten.meta_data.iter().for_each(|(_, z)| {
-                tx_item.send(Arc::new(format!("{} >{}", z.title, z.id)));
+                tx_item.send(Arc::new(format!("{} - \u{2063}{}", z.title, z.id)));
             });
 
             let options = SkimOptionsBuilder::default().build().unwrap();
@@ -164,47 +205,18 @@ fn main() {
                 .iter()
                 .map(|z| {
                     let x = z.output().clone();
-                    let v: Vec<&str> = x.split(">").collect();
+                    let v: Vec<&str> = x.split("\u{2063}").collect();
                     dbg!(v.clone());
                     Uuid::parse_str(v.get(1).expect("Failed to get UUID")).unwrap()
                 })
                 .collect();
 
-            let zettel = Zettel::new("Child zettel".to_string());
-            let id = zettel.meta_data.id.clone();
-            app.kasten
-                .add_zettel(zettel, parents)
-                .expect("Failed to add Zettel.");
-            let path = app.get_zettel_path(id).unwrap();
+            let id = app
+                .new_zettel(parents)
+                .expect("Failed to create new Zettel.");
+            app.open_zettel(id)
+                .expect("Failed to open Zettel in editor.");
             app.export().expect("Failed to store ZettelKasten.");
-            open_zettel(path);
-
-            //let mut parents = vec![];
-            //let zettel = match parent {
-            //Some(id) => {
-            //parents.push(id);
-            //Zettel::new("Child zettel".to_string())
-            //}
-            //None => Zettel::new("Root zettel".to_string()),
-            //};
         }
     }
-}
-
-pub fn open_zettel(path: PathBuf) {
-    let editor = var("EDITOR").unwrap();
-    dbg!(&path);
-    File::create(&path).expect("Could not create file");
-
-    Command::new(editor)
-        .arg(&path)
-        .status()
-        .expect("Something went wrong");
-
-    //dbg!(path.clone());
-    //let mut cmd = Command::new("/usr/bin/nvim");
-    //cmd.arg(path.to_str().unwrap());
-    //cmd.arg("/tmp/src/main.rs");
-    //let output = cmd.status();
-    //dbg!(output);
 }

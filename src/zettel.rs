@@ -24,7 +24,7 @@ impl SkimItem for MetaData {
     }
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone)]
 pub struct Zettel {
     pub meta_data: MetaData,
     pub body: String,
@@ -60,21 +60,34 @@ impl Zettel {
     pub fn new(body: String) -> Self {
         let id = Uuid::new_v4();
 
+        let mut zettel = Zettel {
+            meta_data: MetaData {
+                id,
+                title: "".to_string(),
+                creation_date: Utc::now(),
+            },
+            body: "".to_string(),
+            dirty: true,
+        };
+
+        zettel.update_body(body);
+        zettel
+    }
+
+    /// Update body and title of `Zettle`.
+    pub fn update_body(&mut self, body: String) {
         let title = if let Some(title) = body.lines().next() {
             title
         } else {
             ""
         };
 
-        Zettel {
-            meta_data: MetaData {
-                id,
-                title: title.to_string(),
-                creation_date: Utc::now(),
-            },
-            body,
-            dirty: true,
-        }
+        self.meta_data.title = title.to_string();
+        self.dirty = true;
+    }
+
+    pub fn import<R: Read>(input: R) -> Result<Self, AppError> {
+        serde_json::from_reader(input).map_err(AppError::SerializationError)
     }
 
     pub fn export<W: Write>(&self, output: W) -> Result<(), AppError> {

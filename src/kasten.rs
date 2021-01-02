@@ -73,6 +73,17 @@ impl Kasten {
         Ok(())
     }
 
+    pub fn update_zettel(&mut self, zettel: Zettel) {
+        let meta_data = zettel.meta_data.clone();
+
+        self.zettels.insert(meta_data.id, zettel);
+        self.meta_data.insert(meta_data.id, meta_data);
+    }
+
+    pub fn get_zettel(&self, id: Uuid) -> Result<Zettel, AppError> {
+        Ok(self.zettels[&id].clone())
+    }
+
     pub fn get_node_index(&self, id: Uuid) -> Result<NodeIndex<u32>, AppError> {
         match self.index.node_indices().find(|i| self.index[*i] == id) {
             Some(i) => Ok(i),
