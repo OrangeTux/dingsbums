@@ -13,11 +13,7 @@ use zettelkasten::zettel::Zettel;
 
 #[derive(Debug, Clap)]
 struct Opts {
-    #[clap(
-        short,
-        long,
-        default_value = "/home/developer/projects/zettelkasten/.zettelkasten"
-    )]
+    #[clap(short, long, default_value = "~/.zettelkasten")]
     path: String,
 
     #[clap(subcommand)]
@@ -26,7 +22,7 @@ struct Opts {
 
 #[derive(Clap, Debug)]
 enum SubCommand {
-    #[clap(about = "Initialize new ZellelKasten.")]
+    #[clap(about = "Initialize new Zettelkasten.")]
     Init,
 
     #[clap(about = "Show Kasten as graph")]
@@ -52,7 +48,7 @@ struct App {
 }
 
 impl App {
-    /// Create new `App` with an empty 'Kasten'.
+    /// Create new `App` with an empty `Kasten`.
     ///
     /// # Examples
     ///
