@@ -141,7 +141,7 @@ impl App {
         let mut zettel = Zettel::import(File::open(zettel_path).unwrap()).unwrap();
 
         let mut temp_path = env::temp_dir();
-        temp_path.push(id.to_string());
+        temp_path.push(format!("{}.md", id.to_string()));
 
         fs::write(&temp_path, zettel.body.clone()).expect("Could not create temporary Zettel.");
 
