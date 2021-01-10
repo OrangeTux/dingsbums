@@ -81,6 +81,7 @@ impl Kasten {
     }
 
     pub fn get_zettel(&self, id: Uuid) -> Result<Zettel, AppError> {
+        dbg!(self.zettels.clone());
         Ok(self.zettels[&id].clone())
     }
 

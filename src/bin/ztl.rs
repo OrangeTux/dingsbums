@@ -28,6 +28,9 @@ enum SubCommand {
     #[clap(about = "Show Kasten as graph")]
     Graph,
 
+    #[clap(about = "Modify existing Zettel")]
+    Edit,
+
     #[clap(about = "Create new Zettel.")]
     New(New),
 }
@@ -130,7 +133,12 @@ impl App {
     ///
     /// **note**: `App` must be `export`ed to save any changes.
     pub fn open_zettel(&mut self, id: Uuid) -> Result<Zettel, AppError> {
-        let mut zettel = self.kasten.get_zettel(id)?;
+        let zettel_path = Path::new(&self.root).join(id.to_string());
+        if !zettel_path.exists() {
+            return Err(AppError::ZettelDoesntExistsError);
+        }
+
+        let mut zettel = Zettel::import(File::open(zettel_path).unwrap()).unwrap();
 
         let mut temp_path = env::temp_dir();
         temp_path.push(id.to_string());
@@ -211,6 +219,35 @@ fn main() {
                 .new_zettel(parents)
                 .expect("Failed to create new Zettel.");
             app.open_zettel(id)
+                .expect("Failed to open Zettel in editor.");
+            app.export().expect("Failed to store ZettelKasten.");
+        }
+
+        SubCommand::Edit => {
+            let mut app =
+                App::import(&opts.path).expect("Failed to restore ZettelKasten from disk.");
+
+            let (tx_item, rx_item): (SkimItemSender, SkimItemReceiver) = unbounded();
+            app.kasten.meta_data.iter().for_each(|(_, z)| {
+                tx_item.send(Arc::new(format!("{} - \u{2063}{}", z.title, z.id)));
+            });
+
+            let options = SkimOptionsBuilder::default().build().unwrap();
+            let selected_items = Skim::run_with(&options, Some(rx_item))
+                .map(|out| out.selected_items)
+                .unwrap_or_else(|| Vec::new());
+
+            let parents: Vec<Uuid> = selected_items
+                .iter()
+                .map(|z| {
+                    let x = z.output().clone();
+                    let v: Vec<&str> = x.split("\u{2063}").collect();
+                    dbg!(v.clone());
+                    Uuid::parse_str(v.get(1).expect("Failed to get UUID")).unwrap()
+                })
+                .collect();
+
+            app.open_zettel(parents[0])
                 .expect("Failed to open Zettel in editor.");
             app.export().expect("Failed to store ZettelKasten.");
         }
