@@ -1,4 +1,6 @@
 use clap::Clap;
+use dingsbums::errors::AppError;
+use dingsbums::{Kasten, Zettel};
 use skim::prelude::*;
 use std::env;
 use std::fs;
@@ -7,9 +9,6 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::str;
 use uuid::Uuid;
-use zettelkasten::errors::AppError;
-use zettelkasten::kasten::Kasten;
-use zettelkasten::zettel::Zettel;
 
 #[derive(Debug, Clap)]
 struct Opts {

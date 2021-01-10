@@ -1,5 +1,5 @@
 [package]
-name = "zettelkasten"
+name = "dingsbums"
 version = "0.1.0"
 authors = ["Auke Willem Oosterhoff <aukewillem.oosterhoff@mobilityhouse.com>"]
 edition = "2018"
