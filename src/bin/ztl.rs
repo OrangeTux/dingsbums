@@ -186,6 +186,7 @@ fn main() {
             let id = app
                 .new_zettel(vec![])
                 .expect("Failed to create new Zettel.");
+            app.export().expect("Failed to store ZettelKasten.");
             app.open_zettel(id)
                 .expect("Failed to open Zettel in editor.");
             app.export().expect("Failed to store ZettelKasten.");
@@ -218,6 +219,7 @@ fn main() {
             let id = app
                 .new_zettel(parents)
                 .expect("Failed to create new Zettel.");
+            app.export().expect("Failed to store ZettelKasten.");
             app.open_zettel(id)
                 .expect("Failed to open Zettel in editor.");
             app.export().expect("Failed to store ZettelKasten.");
