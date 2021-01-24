@@ -4,8 +4,8 @@ use thiserror::Error;
 
 #[derive(Debug, Error)]
 pub enum AppError {
-    #[error("Problems with writing to a file.")]
-    WriteError(io::Error),
+    #[error("Problem occurred while importing or exporting.")]
+    IOError { path: String, source: io::Error },
 
     #[error("IO error")]
     SerializationError(serde_json::Error),
