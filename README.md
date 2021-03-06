@@ -38,6 +38,14 @@ The relations between zettels are stored in an Directed Cyclic graph.
 A directed graph allows see how ideas and knowledge develops.
 As a zettel can be linked to other zettels it might be possible to form a cycle.
 
+## Debugging
+
+The log level of `Dingsbums` can be modified by configuring the [environment
+variable `RUST_LOG`][RUST_LOG]:
+
+``` bash
+$ export RUST_LOG=ztl=debug
+```
 
 ## FAQ
 
@@ -54,3 +62,4 @@ anymore.
 [dingsbums]: https://en.wiktionary.org/wiki/Dingsbums
 [luhman]: https://en.wikipedia.org/wiki/Niklas_Luhmann
 [zettelkasten-wiki]: https://en.wikipedia.org/wiki/Zettelkasten
+[RUST_LOG]: https://docs.rs/tracing-subscriber/0.2.16/tracing_subscriber/fmt/index.html#filtering-events-with-environment-variables

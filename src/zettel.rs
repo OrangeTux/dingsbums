@@ -84,6 +84,7 @@ impl Zettel {
 
         self.meta_data.title = title.to_string();
         self.dirty = true;
+        self.body = body;
     }
 
     pub fn import<R: Read>(input: R) -> Result<Self, AppError> {

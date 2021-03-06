@@ -8,6 +8,8 @@ use std::fs::{create_dir_all, File};
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::str;
+use tracing::{debug, info, instrument};
+use tracing_subscriber;
 use uuid::Uuid;
 
 #[derive(Debug, Clap)]
@@ -71,6 +73,7 @@ impl App {
     /// ```no_run
     /// let app = App::import("~/.zettelkasten").unwrap();
     /// ```
+    #[instrument(skip(path), fields(root = path))]
     pub fn import(path: &str) -> Result<Self, AppError> {
         let _path = Path::new(&path);
         let file = File::open(&_path.join("db")).map_err(|e| AppError::IOError {
@@ -78,6 +81,7 @@ impl App {
             source: e,
         })?;
         let kasten = Kasten::import(file)?;
+        info!("Imported Zettelkasten.");
         Ok(App {
             kasten,
             root: path.into(),
@@ -92,9 +96,11 @@ impl App {
     /// let app = App::new("~/.zettelkasten");
     /// app.export().unwrap();
     /// ```
+    #[instrument(skip(self), fields(root = ?self.root))]
     pub fn export(&self) -> Result<(), AppError> {
         let dir = Path::new(&self.root);
         if !dir.exists() {
+            debug!("Creating root directory");
             create_dir_all(&self.root.clone()).map_err(|e| AppError::IOError {
                 path: self.root.to_str().unwrap().to_string(),
                 source: e,
@@ -119,8 +125,10 @@ impl App {
                 path: path.to_str().unwrap().to_string(),
                 source: e,
             })?;
+            debug!(id = ?zettel.meta_data.id, "Exported modified Zettel.");
             zettel.export(&file)?
         }
+        info!("Exported Zettelkasten.");
 
         Ok(())
     }
@@ -144,13 +152,14 @@ impl App {
     /// Open `Zettel` with preferred editor to allow modifications.
     ///
     /// **note**: `App` must be `export`ed to save any changes.
+    #[instrument(skip(self), fields(root = ?self.root))]
     pub fn open_zettel(&mut self, id: Uuid) -> Result<Zettel, AppError> {
         let zettel_path = Path::new(&self.root).join(id.to_string());
         if !zettel_path.exists() {
             return Err(AppError::ZettelDoesntExistsError);
         }
 
-        let mut zettel = Zettel::import(File::open(zettel_path).unwrap()).unwrap();
+        let mut zettel = Zettel::import(File::open(zettel_path.clone()).unwrap()).unwrap();
 
         let mut temp_path = env::temp_dir();
         temp_path.push(format!("{}.md", id.to_string()));
@@ -159,6 +168,7 @@ impl App {
 
         // Open temp file with editor
         let editor = env::var("EDITOR").expect("Env var 'EDITOR' not set");
+        debug!(?temp_path, ?editor);
         Command::new(editor)
             .arg(&temp_path)
             .status()
@@ -178,6 +188,7 @@ impl App {
 }
 
 fn main() {
+    tracing_subscriber::fmt::init();
     let opts: Opts = Opts::parse();
 
     match opts.subcommand {
@@ -220,7 +231,6 @@ fn main() {
                 .map(|z| {
                     let x = z.output().clone();
                     let v: Vec<&str> = x.split("\u{2063}").collect();
-                    dbg!(v.clone());
                     Uuid::parse_str(v.get(1).expect("Failed to get UUID")).unwrap()
                 })
                 .collect();
@@ -253,11 +263,9 @@ fn main() {
                 .map(|z| {
                     let x = z.output().clone();
                     let v: Vec<&str> = x.split("\u{2063}").collect();
-                    dbg!(v.clone());
                     Uuid::parse_str(v.get(1).expect("Failed to get UUID")).unwrap()
                 })
                 .collect();
-
             app.open_zettel(parents[0])
                 .expect("Failed to open Zettel in editor");
             app.export().expect("Failed to store ZettelKasten");
